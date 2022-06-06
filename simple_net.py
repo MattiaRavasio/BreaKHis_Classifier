@@ -22,7 +22,7 @@ class SimpleNet(nn.Module):
         pool3 = nn.MaxPool2d(3)
         relu3 = nn.ReLU() 
         
-        lin1 = nn.Linear(238336,100)
+        lin1 = nn.Linear(56832,100)
         relu4 = nn.ReLU()
         lin2 = nn.Linear(100,15)
         

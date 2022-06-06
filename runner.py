@@ -2,8 +2,10 @@ import os
 
 import matplotlib.pyplot as plt
 import torch.utils
+import numpy as np
 from torch.autograd import Variable
 from torchvision.datasets import ImageFolder
+from sklearn.metrics import confusion_matrix, roc_auc_score
 
 from dl_utils import compute_loss, predict_labels
 
@@ -32,8 +34,6 @@ class Trainer:
             self.model.cuda()
 
         dataloader_args = {"num_workers": 1, "pin_memory": True} if cuda else {}
-############################################################################################################
-############################################################################################################
         self.train_dataset = ImageFolder(os.path.join(data_dir, "train"), transform=train_data_transforms)
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset, batch_size=batch_size, shuffle=True, **dataloader_args
@@ -43,31 +43,18 @@ class Trainer:
         self.test_loader = torch.utils.data.DataLoader(
             self.test_dataset, batch_size=batch_size, shuffle=True, **dataloader_args
         )
-############################################################################################################
-############################################################################################################
         self.optimizer = optimizer
 
         self.train_loss_history = []
         self.validation_loss_history = []
         self.train_accuracy_history = []
         self.validation_accuracy_history = []
-
-        # load the model from the disk if it exists
-        if os.path.exists(model_dir) and load_from_disk:
-            checkpoint = torch.load(os.path.join(self.model_dir, "checkpoint.pt"))
-            self.model.load_state_dict(checkpoint["model_state_dict"])
-            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.last_pred_values = []
+        self.last_true_values = []
 
         self.model.train()
 
-    def save_model(self):
-        """
-        Saves the model state and optimizer state on the dict
-        """
-        torch.save(
-            {"model_state_dict": self.model.state_dict(), "optimizer_state_dict": self.optimizer.state_dict()},
-            os.path.join(self.model_dir, "checkpoint.pt"),
-        )
+   
 
     def train(self, num_epochs):
         """
@@ -117,8 +104,6 @@ class Trainer:
                 )
             )
 
-        self.save_model()
-
     def evaluate(self, split="test"):
         """
         Get the loss and accuracy on the test/train dataset
@@ -128,6 +113,10 @@ class Trainer:
         num_examples = 0
         num_correct = 0
         loss = 0
+
+        if split == "test":
+            self.last_pred_values = []
+            self.last_true_values = []
 
         for _, batch in enumerate(self.test_loader if split == "test" else self.train_loader):
             if self.cuda:
@@ -140,11 +129,16 @@ class Trainer:
             num_examples += input_data.shape[0]
             loss += float(compute_loss(self.model, output_data, target_data, is_normalize=False))
             predicted_labels = predict_labels(output_data)
+
+            if split == "test":
+                self.last_pred_values+=predicted_labels.cpu().tolist() 
+                self.last_true_values+=target_data.cpu().tolist() 
+                
             num_correct += torch.sum(predicted_labels == target_data).cpu().item()
 
         self.model.train()
 
-        return loss / float(num_examples), float(num_correct) / float(num_examples)
+        return loss / float(num_examples), float(num_correct) / float(num_examples), 
 
     def plot_loss_history(self):
         """
@@ -174,4 +168,41 @@ class Trainer:
         plt.ylabel("Accuracy")
         plt.xlabel("Epochs")
         plt.show()
+
+    def confusion_matrix(self):
+        cm = confusion_matrix(self.last_true_values,self.last_pred_values)
+
+        TP = cm[1,1]
+        TN = cm[0,0]
+        FP = cm[0,1]
+        FN = cm[1,0]
+
+        accuracy = (TP+TN)/np.sum(cm)
+        sensitivity = TP/(TP+FN)
+        specificity = TN/(TN+FP)
+        precision = TP/(TP+FP)
+        negative_pred_val = TN/(TN+FN)
+        recall = sensitivity
+        f1 = 2 * ((precision * sensitivity) / (precision + sensitivity))
+        
+        print(f'0: Benign, 1: Malignant')
+        print()
+        print(f'Confusion Matrix:')
+        print(f'                       predicted ')
+        print(f'                      0       1         ')
+        print(f'                  ---------------- ')
+        print(f'            t  0  |  {TN}  |  {FP}  | ')
+        print(f'            r     ---------------- ')
+        print(f'            u  1  |  {FN}   |  {TP} | ')
+        print(f'            e     ---------------- ')
+        print()
+        print(f'Accuracy: {accuracy}')
+        print(f'Sensitivty: {sensitivity}')
+        print(f'Specificity: {specificity}')
+        print(f'Precision: {precision}')
+        print(f'Negative predictive value:{negative_pred_val}')
+        print(f'Recall: {recall}')
+        print(f'F1 score: {f1}')
+        
+
 

@@ -36,7 +36,7 @@ class MyResNet34(nn.Module):
         n_inputs = resnet.fc.in_features
         
         self.fc_layers = nn.Sequential(nn.Linear(n_inputs, 256), nn.ReLU(), 
-                         nn.Linear(256, 2), nn.LogSoftmax(dim=1))
+                         nn.Linear(256, 2))
         
         self.loss_criterion = nn.CrossEntropyLoss(reduction='sum')
         

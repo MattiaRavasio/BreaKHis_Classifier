@@ -9,9 +9,7 @@ def dataset_generator(df):
         file = df.filename[i]
         
         file_source = os.path.join('archive/BreaKHis_v1',file)
-        file_destination = os.path.join('data', os.path.join(df.grp[i], df.class[i]))
-   
-        #get_files = os.listdir(file_source)
+        file_destination = os.path.join('data', os.path.join(df.grp[i], df.label[i]))
         shutil.copy(file_source, file_destination)
     
     print('folder succesfully generated')
